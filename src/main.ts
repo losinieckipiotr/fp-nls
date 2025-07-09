@@ -1,46 +1,39 @@
 import * as A from 'fp-ts/lib/Array';
-import * as I from 'fp-ts/lib/IO';
 import * as O from 'fp-ts/lib/Option';
 import { pipe } from 'fp-ts/lib/pipeable';
-import * as fs from 'fs';
 import * as fse from 'fs-extra';
-import * as glob from 'glob';
+import glob from 'glob';
 import * as path from 'path';
 import * as T from 'fp-ts/lib/Task';
+import getConfig from './config';
 
-const DEBUG = true;
-const CUSTOM = 'custom';
+const CFG = getConfig();
 
-const COMMON_TRANSLATIONS_PATH = 'nls';
-const OUTPUT_PATH = 'output';
-
-const OUTPUT_FOLDER = path.resolve(__dirname, path.join(OUTPUT_PATH, COMMON_TRANSLATIONS_PATH));
-const TRANSLATION_FILES = path.resolve(
-  __dirname,
-  path.join(COMMON_TRANSLATIONS_PATH, '**/*.json'),
-);
-const ORIGINAL_FILES_FOLDER = path.resolve(__dirname, COMMON_TRANSLATIONS_PATH);
-
-// type IO<A> = I.IO<A>;
-// const io = I.io;
+const {
+  DEBUG,
+  ROOT_PATH,
+  CUSTOM_FOLDER,
+  TRANSLATIONS_FOLDER,
+  OUTPUT_PATH,
+  TRANSLATIONS_PATH,
+} = CFG;
 
 type Task<A> = T.Task<A>;
 const task = T.task;
 
 type Option<A> = O.Option<A>;
-const option = O.option;
 
 // treat logging as no side effect
-function debug(...args: any[]) {
+export function debug(...args: any[]) {
   DEBUG && console.log(...args);
 }
 
 function cleanOutputFolderNotSafe(): Task<void> {
   return () => {
-    debug(`clean folder ${OUTPUT_FOLDER}`);
-    return fse.remove(OUTPUT_FOLDER)
+    debug(`clean folder ${OUTPUT_PATH}`);
+    return fse.remove(OUTPUT_PATH)
     .catch((error) => {
-      console.error(`removing folder failed ${OUTPUT_FOLDER}`);
+      console.error(`removing folder failed ${OUTPUT_PATH}`);
       console.error(error);
       process.exit(1);
     });
@@ -49,13 +42,14 @@ function cleanOutputFolderNotSafe(): Task<void> {
 
 function getTranslationFilesNotSafe(): Task<string[]> {
   return () => {
-    debug('getting translation files paths');
+    const transationFilesPattern = path.join(ROOT_PATH, TRANSLATIONS_FOLDER, '**/*.json');
+    debug(`getting translation files paths ${transationFilesPattern}`);
     return new Promise<string[]>((resolve) => {
-      glob(TRANSLATION_FILES, (err, matches) => {
+      glob(transationFilesPattern, (err, matches) => {
         if (!err) {
           resolve(matches);
         } else {
-          console.error(`getting translation files failed from path ${TRANSLATION_FILES}`);
+          console.error(`getting translation files failed from path ${transationFilesPattern}`);
           console.error(err);
           process.exit(1);
         }
@@ -144,9 +138,11 @@ function mergeJsonData(
 }
 
 function onCustomFolder(customFolder: string, originalData: JsonData, filePathRelative: string) {
-  const customFilePath = path.resolve(
-    __dirname,
-    path.join(customFolder, COMMON_TRANSLATIONS_PATH, filePathRelative),
+  const customFilePath = path.join(
+    ROOT_PATH,
+    customFolder,
+    TRANSLATIONS_FOLDER,
+    filePathRelative
   );
   const noCustomFile = () => {
     debug(`custom file not found on ${customFilePath}`);
@@ -187,8 +183,8 @@ function saveData(data: JsonData, outputFilePath: string) {
 }
 
 function processFile(filePath: string, customFolderO: Option<string>) {
-  const filePathRelative = path.relative(ORIGINAL_FILES_FOLDER, filePath);
-  const outputFilePath = path.join(OUTPUT_FOLDER, filePathRelative);
+  const filePathRelative = path.relative(TRANSLATIONS_PATH, filePath);
+  const outputFilePath = path.join(OUTPUT_PATH, filePathRelative);
 
   return pipe(
     readFileNotSafe(filePath),
@@ -204,7 +200,9 @@ function processFile(filePath: string, customFolderO: Option<string>) {
 }
 
 function processFilesAll(files: string[]) {
-  const customPath = CUSTOM.length != 0 ? O.some(CUSTOM) : O.none;
+  const customPath = CUSTOM_FOLDER.length != 0
+    ? O.some(CUSTOM_FOLDER)
+    : O.none;
 
   return A.array.sequence(T.task)(
     A.array.map(files, (file) => processFile(file, customPath)),
@@ -217,7 +215,6 @@ const main = pipe(
   T.chain(processFilesAll),
 );
 
-main();
+export default main;
 
-// 4. add testing (jest ?)
 // 5. handle errors in functional way, also reading and cleaning and parsing may fail
