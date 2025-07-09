@@ -5,7 +5,7 @@ import * as fse from 'fs-extra';
 import glob from 'glob';
 import * as path from 'path';
 import * as T from 'fp-ts/lib/Task';
-import getConfig from './config';
+import { getConfig } from './config';
 
 const CFG = getConfig();
 
@@ -28,7 +28,7 @@ export function debug(...args: any[]) {
   DEBUG && console.log(...args);
 }
 
-function cleanOutputFolderNotSafe(): Task<void> {
+export function cleanOutputFolderNotSafe(): Task<void> {
   return () => {
     debug(`clean folder ${OUTPUT_PATH}`);
     return fse.remove(OUTPUT_PATH)

@@ -17,7 +17,7 @@ interface Cfg {
 	TRANSLATIONS_PATH: string;
 }
 
-const defaultOptions: CfgOptions = {
+export const defaultOptions: CfgOptions = {
 	debug: true,
 	root: '../',
 	customFolder: 'custom',
@@ -25,7 +25,7 @@ const defaultOptions: CfgOptions = {
 	outputFolder: 'output',
 };
 
-export default function getConfig(config: CfgOptions = defaultOptions): Cfg {
+export function getConfig(config: CfgOptions = defaultOptions): Cfg {
 	const DEBUG = config.debug;
 	const ROOT_PATH = path.resolve(path.join(__dirname, config.root));
 	const CUSTOM_FOLDER = config.customFolder;
