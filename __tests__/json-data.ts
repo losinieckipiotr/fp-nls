@@ -1,4 +1,4 @@
-import { isJsonData } from "../src/json-data";
+import { isJsonData } from '../src/json-data';
 
 test('isJsonData', () => {
 	expect(isJsonData(undefined)).toBe(false);

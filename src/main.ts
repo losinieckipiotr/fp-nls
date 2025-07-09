@@ -6,6 +6,7 @@ import * as path from 'path';
 
 import { getConfig } from './config';
 import { debug as debugImpl } from './debug';
+import { JsonData } from './json-data';
 import {
   cleanOutputFolderNotSafe,
   getTranslationFilesNotSafe,
@@ -14,7 +15,6 @@ import {
   readOptionalFileNotSafe,
   saveFileNotSafe,
 } from './not-safe';
-import { JsonData } from './json-data';
 
 const CFG = getConfig();
 

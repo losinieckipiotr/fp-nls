@@ -2,7 +2,8 @@ import * as O from 'fp-ts/lib/Option';
 import * as fse from 'fs-extra';
 import glob from 'glob';
 
-import { testFilePath, testJsonContent, testJsonData, testOutFile, testError } from '../__mocks__/data';
+import { testError, testFilePath, testJsonContent, testJsonData, testOutFile } from '../__mocks__/data';
+import { getConfig } from '../src/config';
 import { debug } from '../src/debug';
 import {
   cleanOutputFolderNotSafe,
@@ -12,7 +13,6 @@ import {
   readOptionalFileNotSafe,
   saveFileNotSafe,
 } from '../src/not-safe';
-import { getConfig } from '../src/config';
 
 jest.mock('../src/debug', () => {
 	return {
