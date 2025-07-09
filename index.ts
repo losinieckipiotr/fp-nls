@@ -1,0 +1,223 @@
+import * as A from 'fp-ts/lib/Array';
+import * as I from 'fp-ts/lib/IO';
+import * as O from 'fp-ts/lib/Option';
+import { pipe } from 'fp-ts/lib/pipeable';
+import * as fs from 'fs';
+import * as fse from 'fs-extra';
+import * as glob from 'glob';
+import * as path from 'path';
+import * as T from 'fp-ts/lib/Task';
+
+const DEBUG = true;
+const CUSTOM = 'custom';
+
+const COMMON_TRANSLATIONS_PATH = 'nls';
+const OUTPUT_PATH = 'output';
+
+const OUTPUT_FOLDER = path.resolve(__dirname, path.join(OUTPUT_PATH, COMMON_TRANSLATIONS_PATH));
+const TRANSLATION_FILES = path.resolve(
+  __dirname,
+  path.join(COMMON_TRANSLATIONS_PATH, '**/*.json'),
+);
+const ORIGINAL_FILES_FOLDER = path.resolve(__dirname, COMMON_TRANSLATIONS_PATH);
+
+// type IO<A> = I.IO<A>;
+// const io = I.io;
+
+type Task<A> = T.Task<A>;
+const task = T.task;
+
+type Option<A> = O.Option<A>;
+const option = O.option;
+
+// treat logging as no side effect
+function debug(...args: any[]) {
+  DEBUG && console.log(...args);
+}
+
+function cleanOutputFolderNotSafe(): Task<void> {
+  return () => {
+    debug(`clean folder ${OUTPUT_FOLDER}`);
+    return fse.remove(OUTPUT_FOLDER)
+    .catch((error) => {
+      console.error(`removing folder failed ${OUTPUT_FOLDER}`);
+      console.error(error);
+      process.exit(1);
+    });
+  };
+}
+
+function getTranslationFilesNotSafe(): Task<string[]> {
+  return () => {
+    debug('getting translation files paths');
+    return new Promise<string[]>((resolve) => {
+      glob(TRANSLATION_FILES, (err, matches) => {
+        if (!err) {
+          resolve(matches);
+        } else {
+          console.error(`getting translation files failed from path ${TRANSLATION_FILES}`);
+          console.error(err);
+          process.exit(1);
+        }
+      });
+    });
+  };
+}
+
+function readFileNotSafe(filePath: string): Task<string> {
+  return () => {
+    debug(`reading file ${filePath}`);
+    return fse.readFile(filePath, {encoding: 'utf8'})
+    .catch((error) => {
+      console.error(`reading file failed ${filePath}`);
+      console.error(error);
+      process.exit(1);
+    });
+  };
+}
+
+function saveFileNotSafe(file: string, filePath: string): Task<void> {
+  return () => {
+    debug(`saving file ${filePath}`);
+    return fse.ensureFile(filePath)
+    .then(() => fse.writeFile(filePath, file))
+    .catch((error) => {
+      console.error(`saving file failed ${filePath}`);
+      console.error(error);
+      process.exit(1);
+    });
+  }
+}
+
+function readOptionalFile(filePath: string): Task<Option<string>> {
+  return () => {
+    debug(`reading optional file ${filePath}`);
+    return fse.readFile(filePath, {encoding: 'utf8'})
+    .then(O.some)
+    .catch((_) => O.none as O.Option<string>);
+  };
+}
+
+type JsonData = { [key: string]: any };
+
+function isJsonData(value: unknown): value is JsonData {
+  if (typeof value == 'object' && value !== null) {
+    return Object.values(value)
+      .every((v) => typeof v == 'string');
+  }
+  return false;
+}
+
+function parseJsonDataNotSafe(jsonFile: string): JsonData {
+  try {
+    const data: unknown = JSON.parse(jsonFile);
+    if (isJsonData(data)) {
+      return data;
+    } else {
+      throw new Error('Invalid data format');
+    }
+  } catch (error) {
+    console.error(`parsing JSON failed`);
+    console.error(jsonFile);
+    console.error(error);
+    process.exit(1);
+  }
+}
+
+function getCustomData(customFilePath: string) {
+  return pipe(
+    readOptionalFile(customFilePath),
+    T.map(O.map(parseJsonDataNotSafe))
+  );
+}
+
+function mergeJsonData(
+  customData: JsonData,
+  originalData: JsonData,
+): JsonData {
+  // TODO detect missing keys in orignial data
+  const mergedData: JsonData = Object.assign({}, originalData, customData);
+
+  debug(`mergeJsonData:`, { originalData, customData, mergedData });
+
+  return mergedData;
+}
+
+function onCustomFolder(customFolder: string, originalData: JsonData, filePathRelative: string) {
+  const customFilePath = path.resolve(
+    __dirname,
+    path.join(customFolder, COMMON_TRANSLATIONS_PATH, filePathRelative),
+  );
+  const noCustomFile = () => {
+    debug(`custom file not found on ${customFilePath}`);
+    return originalData;
+  };
+
+  return pipe(
+    getCustomData(customFilePath),
+    T.map(
+      O.fold(
+        noCustomFile,
+        (customData) => mergeJsonData(customData, originalData),
+      ),
+    ),
+  );
+}
+
+function readCustomAndParse(
+  originalFile: string,
+  customFolderO: Option<string>,
+  filePathRelative: string,
+) {
+  const originalData: JsonData = parseJsonDataNotSafe(originalFile);
+  const noCustomFolder = () => task.of(O.some(originalData));
+
+  return pipe(
+    customFolderO,
+    O.fold(
+      noCustomFolder,
+      (customFolder) => onCustomFolder(customFolder, originalData, filePathRelative),
+    ),
+  );
+}
+
+function saveData(data: JsonData, outputFilePath: string) {
+  // FIXME stringify may fail, but should not at this point
+  return saveFileNotSafe(JSON.stringify(data), outputFilePath);
+}
+
+function processFile(filePath: string, customFolderO: Option<string>) {
+  const filePathRelative = path.relative(ORIGINAL_FILES_FOLDER, filePath);
+  const outputFilePath = path.join(OUTPUT_FOLDER, filePathRelative);
+
+  return pipe(
+    readFileNotSafe(filePath),
+    T.chain((originalFile) => {
+      return readCustomAndParse(
+        originalFile,
+        customFolderO,
+        filePathRelative
+      );
+    }),
+    T.chain((data) => saveData(data, outputFilePath)),
+  );
+}
+
+function processFilesAll(files: string[]) {
+  const customPath = CUSTOM.length != 0 ? O.some(CUSTOM) : O.none;
+
+  return A.array.sequence(T.task)(
+    A.array.map(files, (file) => processFile(file, customPath)),
+  );
+}
+
+const main = pipe(
+  cleanOutputFolderNotSafe(),
+  T.chain(getTranslationFilesNotSafe),
+  T.chain(processFilesAll),
+);
+
+main();
+
+// 4. add testing (jest ?)
+// 5. handle errors in functional way, also reading and cleaning and parsing may fail
