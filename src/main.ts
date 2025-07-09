@@ -6,6 +6,7 @@ import glob from 'glob';
 import * as path from 'path';
 import * as T from 'fp-ts/lib/Task';
 import { getConfig } from './config';
+import { debug as debugImpl } from './utils';
 
 const CFG = getConfig();
 
@@ -18,29 +19,27 @@ const {
   TRANSLATIONS_PATH,
 } = CFG;
 
+function debug(...args: any[]) {
+  debugImpl(DEBUG, args)
+}
+
 type Task<A> = T.Task<A>;
 const task = T.task;
 
 type Option<A> = O.Option<A>;
-
-// treat logging as no side effect
-export function debug(...args: any[]) {
-  DEBUG && console.log(...args);
-}
 
 export function cleanOutputFolderNotSafe(): Task<void> {
   return () => {
     debug(`clean folder ${OUTPUT_PATH}`);
     return fse.remove(OUTPUT_PATH)
     .catch((error) => {
-      console.error(`removing folder failed ${OUTPUT_PATH}`);
-      console.error(error);
-      process.exit(1);
+      debug(`removing folder failed ${OUTPUT_PATH}`);
+      throw error;
     });
   };
 }
 
-function getTranslationFilesNotSafe(): Task<string[]> {
+export function getTranslationFilesNotSafe(): Task<string[]> {
   return () => {
     const transationFilesPattern = path.join(ROOT_PATH, TRANSLATIONS_FOLDER, '**/*.json');
     debug(`getting translation files paths ${transationFilesPattern}`);
@@ -49,9 +48,8 @@ function getTranslationFilesNotSafe(): Task<string[]> {
         if (!err) {
           resolve(matches);
         } else {
-          console.error(`getting translation files failed from path ${transationFilesPattern}`);
-          console.error(err);
-          process.exit(1);
+          debug(`getting translation files failed from path ${transationFilesPattern}`);
+          throw err;
         }
       });
     });

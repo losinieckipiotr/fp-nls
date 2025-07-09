@@ -8,7 +8,7 @@ interface CfgOptions {
 	outputFolder: string;
 }
 
-interface Cfg {
+export interface Cfg {
 	DEBUG: boolean;
 	ROOT_PATH: string;
 	CUSTOM_FOLDER: string;
