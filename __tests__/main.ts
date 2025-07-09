@@ -1,106 +1,72 @@
-import * as fse from 'fs-extra';
-import glob from 'glob';
+import * as O from 'fp-ts/lib/Option';
+import * as T from 'fp-ts/lib/Task';
 
-import { testCfg } from '../__mocks__/testCfg';
+import { testCustomData, testFilePath, testJsonContent, testJsonData, testMergeResult } from '../__mocks__/data';
+import { debug } from '../src/debug';
+import { getCustomData, mergeJsonData } from '../src/main';
+import { parseJsonDataNotSafe, readOptionalFileNotSafe } from '../src/not-safe';
+import { JsonData } from '../src/json-data';
 
-import {
-	cleanOutputFolderNotSafe,
-	getTranslationFilesNotSafe,
-} from '../src/main';
+jest.mock('../src/debug', () => {
+	return {
+		debug: jest.fn(() => {}),
+	};
+});
+jest.mock('../src/not-safe', () => {
+	return {
+		cleanOutputFolderNotSafe: jest.fn(),
+		getTranslationFilesNotSafe: jest.fn(),
+		parseJsonDataNotSafe: jest.fn(),
+		readFileNotSafe: jest.fn(),
+		readOptionalFileNotSafe: jest.fn(),
+		saveFileNotSafe: jest.fn(),
+	};
+});
 
-import {
-	debug
-} from '../src/utils';
-import path from 'path';
-
-jest.mock('fs-extra');
-jest.mock('glob');
-jest.mock('fs-extra');
-
-let spy: jest.SpyInstance;
 
 beforeEach(() => {
-	spy = jest.spyOn(console, 'log').mockImplementation();
+	const debugMock = debug as jest.Mock<void>;
+	debugMock.mockClear();
+
+	const readOptionalFileMock = readOptionalFileNotSafe as jest.Mock<T.Task<O.Option<string>>, [string]>;
+	readOptionalFileMock.mockClear();
+
+	const parseJsonDataNotSafeMock = parseJsonDataNotSafe as jest.Mock<JsonData, [string]>;
+	parseJsonDataNotSafeMock.mockClear();
 });
 
-afterEach(() => {
-	spy.mockRestore();
-})
-
-test('debug function should call console.log with multiple arguments only if debug flag is true', () => {
-	const args = [
-		'arg1',
-		'arg2',
-		3,
-		{arg: 4},
-	];
-
-	debug(false, 'test');
-	debug(false, ...args);
-
-	expect(console.log).not.toHaveBeenCalled();
-
-	debug(true, 'test');
-	debug(true, ...args);
-
-	expect(console.log).toHaveBeenCalledTimes(2);
-	expect(console.log).toHaveBeenNthCalledWith(1, 'test');
-	expect(console.log).toHaveBeenNthCalledWith(2, ...args);
-});
-
-test('cleanOutputFolderNotSafe should call debug and fs-extra.remove()', () => {
-	const remove = fse.remove as jest.Mock<Promise<void>, [string]>;
-	remove.mockResolvedValue();
-
-	const task = cleanOutputFolderNotSafe();
-
-	expect(typeof task).toBe('function');
-
-	expect(task()).resolves.toBeUndefined();
-	expect(console.log).toHaveBeenCalledTimes(1);
-
-	expect(remove).toHaveBeenCalledTimes(1);
-	expect(remove).toHaveBeenCalledWith(testCfg.OUTPUT_PATH);
-});
-
-test('cleanOutputFolderNotSafe throws error', () => {
-	const remove = fse.remove as jest.Mock<Promise<void>, [string]>;
-	const testError = new Error('test');
-	remove.mockRejectedValueOnce(testError);
-
-	const task = cleanOutputFolderNotSafe();
-
-	expect(typeof task).toBe('function');
-
-	expect.assertions(3);
-
-	return task()
-		.catch((error) => {
-			expect(error).toBe(testError);
-			expect(console.log).toHaveBeenCalledTimes(2);
-		});
-});
-
-test('getTranslationFilesNotSafe', () => {
-	const testGlob = [
-		'/home/plosiniecki/Desktop/fp-nls/nls/eng.json',
-		'/home/plosiniecki/Desktop/fp-nls/nls/pl.json'
-	];
-	const transationFilesPattern = path.join(testCfg.ROOT_PATH, testCfg.TRANSLATIONS_FOLDER, '**/*.json');
-
-	const globMock = (glob as unknown) as jest.Mock<void, [string, (err: any, matches: string[]) => void]>;
-	globMock.mockImplementation((_, cb) => {
-		cb(null, testGlob);
+test('getCustomData', () => {
+	const readOptionalFileMock = readOptionalFileNotSafe as jest.Mock<T.Task<O.Option<string>>, [string]>;
+	readOptionalFileMock.mockImplementation(() => {
+		return T.task.of(O.some(testJsonContent));
 	});
-	const task = getTranslationFilesNotSafe();
+	const parseJsonDataNotSafeMock = parseJsonDataNotSafe as jest.Mock<JsonData, [string]>;
+	parseJsonDataNotSafeMock.mockImplementation(() => {
+		return testJsonData;
+	});
 
-	expect.assertions(3);
+	expect.assertions(6);
 
+	const task = getCustomData(testFilePath);
 	expect(typeof task).toBe('function');
 
-	return task()
-		.then((result) => {
-			expect(result).toBe(testGlob);
-			expect(globMock).toBeCalledWith(transationFilesPattern, expect.any(Function));
+	return expect(task()).resolves.toStrictEqual(O.some(testJsonData))
+		.then(() => {
+			expect(readOptionalFileMock).toHaveBeenCalledTimes(1);
+			expect(readOptionalFileMock).toHaveBeenCalledWith(testFilePath);
+
+			expect(parseJsonDataNotSafeMock).toHaveBeenCalledTimes(1);
+			expect(parseJsonDataNotSafeMock).toHaveBeenCalledWith(testJsonContent);
 		});
 });
+
+test('mergeJsonData', () => {
+	expect(mergeJsonData(testCustomData, testJsonData)).toStrictEqual(testMergeResult);
+	expect(debug).toHaveBeenCalledTimes(1);
+});
+
+// test('onCustomFolder', () => {
+// 	const CFG = getConfig();
+// 	const task = onCustomFolder(CFG.CUSTOM_FOLDER, testJsonData, testRelativeFilePath);
+// 	expect(typeof task).toBe('function');
+// });
