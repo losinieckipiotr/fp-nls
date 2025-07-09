@@ -1,30 +1,39 @@
 import * as path from 'path';
 
-interface Cfg {
+interface CfgOptions {
 	debug: boolean;
 	root: string,
-	custom: string;
-	commonTranslationPaths: string;
-	outputPath: string;
+	customFolder: string;
+	translationsFolder: string;
+	outputFolder: string;
 }
 
-const defaultCfg = {
+interface Cfg {
+	DEBUG: boolean;
+	ROOT_PATH: string;
+	CUSTOM_FOLDER: string;
+	TRANSLATIONS_FOLDER: string;
+	OUTPUT_PATH: string;
+	TRANSLATIONS_PATH: string;
+}
+
+const defaultOptions: CfgOptions = {
 	debug: true,
 	root: '../',
-	custom: 'custom',
-	commonTranslationPaths: 'nls',
-	outputPath: 'output',
+	customFolder: 'custom',
+	translationsFolder: 'nls',
+	outputFolder: 'output',
 };
 
-export default function getConfig(config: Cfg = defaultCfg) {
+export default function getConfig(config: CfgOptions = defaultOptions): Cfg {
 	const DEBUG = config.debug;
-	const ROOT_PATH = path.resolve(path.join(__dirname, defaultCfg.root));
-	const CUSTOM_FOLDER = config.custom;
-	const TRANSLATIONS_FOLDER = config.commonTranslationPaths;
-	const OUTPUT_PATH = path.join(ROOT_PATH, config.outputPath, TRANSLATIONS_FOLDER);
+	const ROOT_PATH = path.resolve(path.join(__dirname, config.root));
+	const CUSTOM_FOLDER = config.customFolder;
+	const TRANSLATIONS_FOLDER = config.translationsFolder;
+	const OUTPUT_PATH = path.join(ROOT_PATH, config.outputFolder);
 	const TRANSLATIONS_PATH = path.join(ROOT_PATH, TRANSLATIONS_FOLDER);
 
-	const CFG = {
+	const CFG: Cfg = {
 		DEBUG,
 		ROOT_PATH,
 		CUSTOM_FOLDER,

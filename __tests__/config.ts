@@ -9,7 +9,7 @@ test('Configuration test', () => {
 		ROOT_PATH: '/home/plosiniecki/Desktop/fp-nls',
 		CUSTOM_FOLDER: 'custom',
 		TRANSLATIONS_FOLDER: 'nls',
-		OUTPUT_PATH: '/home/plosiniecki/Desktop/fp-nls/output/nls',
+		OUTPUT_PATH: '/home/plosiniecki/Desktop/fp-nls/output',
 		TRANSLATIONS_PATH: '/home/plosiniecki/Desktop/fp-nls/nls',
 	});
 });
